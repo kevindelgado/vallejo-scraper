@@ -148,6 +148,21 @@ Unverified rent sources (`rentcast_estimate`, `estimated_from_sqft`, `unknown`) 
 | `estimated_from_sqft` | Estimated at $1.85/sqft/month (unverified) |
 | `unknown` | No rent or sqft data available (unverified) |
 
+## Web UI Target Filters
+
+The web application includes editable target filters that let you adjust the search criteria for each run:
+
+- **Min Price / Max Price** — price band for listings (default: $400K–$1.1M)
+- **Min Units / Max Units** — unit count range (default: 2–4)
+
+City/state is fixed to Vallejo, CA.
+
+Filter changes are **per-request only** — they are not persisted across page reloads or app restarts. When you click **Run Pipeline** without changing filters, the config defaults are used.
+
+The results page displays an "Active filters" banner showing the exact filters that were used for the current result set — this always reflects what was actually sent to RentCast, not what is currently in the form fields.
+
+The CLI (`python -m vallejo_scraper.run`) continues to use the `config.py` defaults and is not affected by web UI filter changes.
+
 ## Cron Scheduling
 
 To run daily at 8 AM Pacific:
@@ -169,13 +184,18 @@ src/vallejo_scraper/
 ├── __init__.py
 ├── __main__.py      # python -m vallejo_scraper entry point
 ├── config.py        # All configuration and assumptions
-├── models.py        # Pydantic v2 models
+├── models.py        # Pydantic v2 models (Listing, MRPResult, Verdict, TargetFilters)
 ├── underwriter.py   # MRP calculation and verdict classification
 ├── rentcast.py      # RentCast API provider
 ├── output.py        # CSV writer
-└── run.py           # Pipeline orchestrator
+├── run.py           # Pipeline orchestrator
+├── web.py           # FastAPI web application
+└── static/
+    └── index.html   # Browser UI with filter form
 tests/
 ├── test_underwriter.py  # Reference deal tests
 ├── test_classify.py     # Verdict threshold tests
-└── test_rentcast.py     # Mocked provider tests
+├── test_rentcast.py     # Mocked provider tests
+├── test_filters.py      # TargetFilters validation tests
+└── test_web.py          # FastAPI route tests
 ```

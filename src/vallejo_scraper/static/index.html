@@ -9,6 +9,18 @@
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; padding: 20px; }
   h1 { font-size: 1.5rem; margin-bottom: 8px; }
   .subtitle { color: #666; margin-bottom: 20px; font-size: 0.9rem; }
+
+  /* Filter form */
+  .filters { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 16px 20px; margin-bottom: 20px; }
+  .filters h2 { font-size: 0.95rem; margin-bottom: 12px; color: #374151; }
+  .filter-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; }
+  .filter-group { display: flex; flex-direction: column; gap: 4px; }
+  .filter-group label { font-size: 0.78rem; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.025em; }
+  .filter-group input { width: 140px; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.88rem; }
+  .filter-group input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.15); }
+  .filter-group input.invalid { border-color: #dc2626; background: #fef2f2; }
+  .filter-error { color: #dc2626; font-size: 0.8rem; margin-top: 8px; display: none; }
+
   .controls { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
   button#run-btn {
     background: #2563eb; color: #fff; border: none; padding: 10px 24px;
@@ -17,6 +29,11 @@
   button#run-btn:hover { background: #1d4ed8; }
   button#run-btn:disabled { background: #93c5fd; cursor: not-allowed; }
   #status { font-size: 0.9rem; color: #666; }
+
+  /* Active filters banner */
+  .active-filters { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 8px 14px; margin-bottom: 12px; font-size: 0.82rem; color: #1e40af; display: none; }
+  .active-filters strong { font-weight: 600; }
+
   .table-wrap { overflow-x: auto; background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
   table { border-collapse: collapse; width: 100%; font-size: 0.82rem; white-space: nowrap; }
   th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
@@ -45,10 +62,35 @@
 <body>
 <h1>Vallejo Multifamily Underwriter</h1>
 <p class="subtitle">2-4 unit listings in Vallejo, CA &mdash; MRP analysis via RentCast</p>
+
+<div class="filters">
+  <h2>Target Filters</h2>
+  <div class="filter-row">
+    <div class="filter-group">
+      <label for="f-min-price">Min Price ($)</label>
+      <input id="f-min-price" type="number" min="0" step="10000">
+    </div>
+    <div class="filter-group">
+      <label for="f-max-price">Max Price ($)</label>
+      <input id="f-max-price" type="number" min="0" step="10000">
+    </div>
+    <div class="filter-group">
+      <label for="f-min-units">Min Units</label>
+      <input id="f-min-units" type="number" min="1" max="10" step="1">
+    </div>
+    <div class="filter-group">
+      <label for="f-max-units">Max Units</label>
+      <input id="f-max-units" type="number" min="1" max="10" step="1">
+    </div>
+  </div>
+  <div class="filter-error" id="filter-error"></div>
+</div>
+
 <div class="controls">
   <button id="run-btn" onclick="runPipeline()">Run Pipeline</button>
   <span id="status"></span>
 </div>
+<div class="active-filters" id="active-filters"></div>
 <div id="summary"></div>
 <div class="table-wrap">
   <div class="empty" id="placeholder">Click <strong>Run Pipeline</strong> to fetch and underwrite listings</div>
@@ -84,14 +126,29 @@ let data = [];
 let sortCol = null;
 let sortDir = 'asc';
 
+// Load defaults from the server on page load
+(async function loadDefaults() {
+  try {
+    const resp = await fetch(window.location.origin + '/api/defaults');
+    if (!resp.ok) return;
+    const d = await resp.json();
+    document.getElementById('f-min-price').value = d.min_price;
+    document.getElementById('f-max-price').value = d.max_price;
+    document.getElementById('f-min-units').value = d.min_units;
+    document.getElementById('f-max-units').value = d.max_units;
+  } catch (_) { /* ignore */ }
+})();
+
 function fmtVal(col, val) {
   if (val === null || val === undefined || val === '') return '\u2014';
-  if (col.type === 'link') return val ? `<a href="${val}" target="_blank" rel="noopener">Link</a>` : '\u2014';
+  if (col.type === 'link') return val ? '<a href="' + val + '" target="_blank" rel="noopener">Link</a>' : '\u2014';
   if (col.fmt === '$') return '$' + Number(val).toLocaleString('en-US', { maximumFractionDigits: 0 });
   if (col.fmt === '%') return (val * 100).toFixed(1) + '%';
   if (col.fmt === ',') return Number(val).toLocaleString('en-US', { maximumFractionDigits: 0 });
   return String(val);
 }
+
+function fmtPrice(v) { return '$' + Number(v).toLocaleString('en-US', { maximumFractionDigits: 0 }); }
 
 function renderTable() {
   const hdr = document.getElementById('header-row');
@@ -125,7 +182,7 @@ function renderTable() {
       const td = document.createElement('td');
       if (col.key === 'verdict') {
         const v = row[col.key] || '';
-        td.innerHTML = `<span class="verdict-cell verdict-${v}">${v.replace(/_/g, ' ')}</span>`;
+        td.innerHTML = '<span class="verdict-cell verdict-' + v + '">' + v.replace(/_/g, ' ') + '</span>';
       } else {
         td.innerHTML = fmtVal(col, row[col.key]);
       }
@@ -146,32 +203,98 @@ function sortBy(colIdx) {
   renderTable();
 }
 
+function validateFilters() {
+  const errEl = document.getElementById('filter-error');
+  const fields = ['f-min-price', 'f-max-price', 'f-min-units', 'f-max-units'];
+  fields.forEach(id => document.getElementById(id).classList.remove('invalid'));
+  errEl.style.display = 'none';
+
+  const minP = parseInt(document.getElementById('f-min-price').value, 10);
+  const maxP = parseInt(document.getElementById('f-max-price').value, 10);
+  const minU = parseInt(document.getElementById('f-min-units').value, 10);
+  const maxU = parseInt(document.getElementById('f-max-units').value, 10);
+
+  if (!isNaN(minP) && minP < 0) {
+    document.getElementById('f-min-price').classList.add('invalid');
+    errEl.textContent = 'Min price must be >= 0.';
+    errEl.style.display = 'block';
+    return null;
+  }
+  if (!isNaN(minP) && !isNaN(maxP) && maxP < minP) {
+    document.getElementById('f-max-price').classList.add('invalid');
+    errEl.textContent = 'Max price must be >= min price.';
+    errEl.style.display = 'block';
+    return null;
+  }
+  if (!isNaN(minU) && (minU < 1 || minU > 10)) {
+    document.getElementById('f-min-units').classList.add('invalid');
+    errEl.textContent = 'Min units must be between 1 and 10.';
+    errEl.style.display = 'block';
+    return null;
+  }
+  if (!isNaN(maxU) && (maxU < 1 || maxU > 10)) {
+    document.getElementById('f-max-units').classList.add('invalid');
+    errEl.textContent = 'Max units must be between 1 and 10.';
+    errEl.style.display = 'block';
+    return null;
+  }
+  if (!isNaN(minU) && !isNaN(maxU) && maxU < minU) {
+    document.getElementById('f-max-units').classList.add('invalid');
+    errEl.textContent = 'Max units must be >= min units.';
+    errEl.style.display = 'block';
+    return null;
+  }
+
+  const params = new URLSearchParams();
+  if (!isNaN(minP)) params.set('min_price', minP);
+  if (!isNaN(maxP)) params.set('max_price', maxP);
+  if (!isNaN(minU)) params.set('min_units', minU);
+  if (!isNaN(maxU)) params.set('max_units', maxU);
+  return params;
+}
+
+function showActiveFilters(af) {
+  const el = document.getElementById('active-filters');
+  el.innerHTML = '<strong>Active filters:</strong> Price ' + fmtPrice(af.min_price) +
+    ' \u2013 ' + fmtPrice(af.max_price) +
+    ' &nbsp;|&nbsp; Units ' + af.min_units + ' \u2013 ' + af.max_units;
+  el.style.display = 'block';
+}
+
 async function runPipeline() {
   const btn = document.getElementById('run-btn');
   const status = document.getElementById('status');
   const summary = document.getElementById('summary');
+
+  const params = validateFilters();
+  if (params === null) return;
+
   btn.disabled = true;
   status.textContent = 'Fetching listings from RentCast...';
   summary.textContent = '';
 
   try {
-    const apiUrl = window.location.origin + '/api/run';
+    const qs = params.toString() ? '?' + params.toString() : '';
+    const apiUrl = window.location.origin + '/api/run' + qs;
     const resp = await fetch(apiUrl, { method: 'POST' });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
-      throw new Error(err.detail || `HTTP ${resp.status}`);
+      throw new Error(err.detail || 'HTTP ' + resp.status);
     }
-    data = await resp.json();
+    const body = await resp.json();
+    data = body.results;
+    showActiveFilters(body.active_filters);
+
     document.getElementById('placeholder').style.display = 'none';
     document.getElementById('results-table').style.display = '';
     sortCol = null;
     renderTable();
-    status.textContent = `Done \u2014 ${data.length} listing${data.length !== 1 ? 's' : ''} found`;
+    status.textContent = 'Done \u2014 ' + data.length + ' listing' + (data.length !== 1 ? 's' : '') + ' found';
 
     // Verdict summary
     const counts = {};
     data.forEach(r => { counts[r.verdict] = (counts[r.verdict] || 0) + 1; });
-    const parts = Object.entries(counts).sort().map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`);
+    const parts = Object.entries(counts).sort().map(([k, v]) => k.replace(/_/g, ' ') + ': ' + v);
     summary.textContent = parts.join(' | ');
   } catch (e) {
     status.textContent = 'Error: ' + e.message;

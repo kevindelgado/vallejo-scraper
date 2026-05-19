@@ -6,7 +6,32 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from vallejo_scraper import config as _cfg
+
+
+# ---------------------------------------------------------------------------
+# Target filters (editable via web UI, per-request, not persisted)
+# ---------------------------------------------------------------------------
+class TargetFilters(BaseModel):
+    min_price: int = _cfg.MIN_PRICE
+    max_price: int = _cfg.MAX_PRICE
+    min_units: int = _cfg.MIN_UNITS
+    max_units: int = _cfg.MAX_UNITS
+    city: str = _cfg.TARGET_CITY
+    state: str = _cfg.TARGET_STATE
+    active_only: bool = _cfg.ACTIVE_ONLY
+
+    @model_validator(mode="after")
+    def _validate_ranges(self) -> "TargetFilters":
+        if self.min_price < 0:
+            raise ValueError("min_price must be >= 0")
+        if self.max_price < self.min_price:
+            raise ValueError("max_price must be >= min_price")
+        if not (1 <= self.min_units <= self.max_units <= 10):
+            raise ValueError("unit counts must satisfy 1 <= min_units <= max_units <= 10")
+        return self
 
 
 # ---------------------------------------------------------------------------
