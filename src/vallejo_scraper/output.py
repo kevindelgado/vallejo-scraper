@@ -61,7 +61,7 @@ def write_csv(
                     "scraped_at": listing.scraped_at.strftime("%Y-%m-%d %H:%M:%S"),
                     "address": listing.address,
                     "list_price": f"{listing.list_price:.0f}",
-                    "num_units": listing.num_units,
+                    "num_units": listing.num_units if listing.units_confirmed else "",
                     "bedrooms": listing.bedrooms if listing.bedrooms is not None else "",
                     "sqft": f"{listing.sqft:.0f}" if listing.sqft else "",
                     "year_built": listing.year_built or "",
