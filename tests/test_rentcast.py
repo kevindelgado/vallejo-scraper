@@ -116,7 +116,7 @@ class TestFetchSaleListings:
         )
 
         listings = fetch_sale_listings(api_key="test-key")
-        # Unit count defaults to bedrooms=4, which is within 2-4 range
+        # Units not confirmed → passes through regardless of bedroom count
         assert len(listings) == 1
         assert listings[0].address == "123 Main St, Vallejo, CA 94590"
 
@@ -145,8 +145,8 @@ class TestFetchSaleListings:
         assert listings == []
 
     @respx.mock
-    def test_unit_filter_excludes_single_family(self) -> None:
-        """Listings with 1 unit (below MIN_UNITS) should be filtered out."""
+    def test_confirmed_unit_filter_excludes_single_family(self) -> None:
+        """Listings with confirmed 1 unit (below MIN_UNITS) should be filtered out."""
         raw = {**SAMPLE_LISTING_JSON, "bedrooms": 1, "units": 1}
         respx.get("https://api.rentcast.io/v1/listings/sale").mock(
             return_value=httpx.Response(200, json=[raw])
@@ -155,11 +155,24 @@ class TestFetchSaleListings:
         assert len(listings) == 0
 
     @respx.mock
-    def test_unit_filter_excludes_large_complex(self) -> None:
-        """Listings with >4 units should be filtered out."""
+    def test_confirmed_unit_filter_excludes_large_complex(self) -> None:
+        """Listings with confirmed >4 units should be filtered out."""
         raw = {**SAMPLE_LISTING_JSON, "units": 8}
         respx.get("https://api.rentcast.io/v1/listings/sale").mock(
             return_value=httpx.Response(200, json=[raw])
         )
         listings = fetch_sale_listings(api_key="test-key")
         assert len(listings) == 0
+
+    @respx.mock
+    def test_unconfirmed_units_pass_through(self) -> None:
+        """Listings without a confirmed unit count should not be filtered out,
+        even if the bedroom count exceeds MAX_UNITS."""
+        raw = {**SAMPLE_LISTING_JSON, "bedrooms": 6}  # no "units" field
+        respx.get("https://api.rentcast.io/v1/listings/sale").mock(
+            return_value=httpx.Response(200, json=[raw])
+        )
+        listings = fetch_sale_listings(api_key="test-key")
+        assert len(listings) == 1
+        assert listings[0].num_units == 6
+        assert listings[0].units_confirmed is False

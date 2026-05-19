@@ -38,16 +38,18 @@ def _parse_listing(raw: dict[str, Any], now: datetime) -> Listing | None:
         logger.warning("Skipping listing with no price: %s", address)
         return None
 
-    # Unit count: RentCast doesn't have a dedicated "units" field for
-    # multi-family. We infer from propertyType or fall back to bedrooms as a
-    # rough proxy.  Multi-Family listings sometimes have a "units" field.
+    # Unit count: RentCast sometimes provides a "units" field for
+    # multi-family, but often does not.  We track whether the value is
+    # confirmed by RentCast so the caller can decide whether to filter.
+    units_confirmed = False
     num_units = raw.get("units")
     if num_units is None:
-        # Some records expose unitCount or numberOfUnits
         num_units = raw.get("unitCount") or raw.get("numberOfUnits")
-    if num_units is None:
-        # Fallback: treat bedrooms as a proxy (imperfect but better than 0)
-        num_units = raw.get("bedrooms") or 2  # minimum for our filter
+    if num_units is not None:
+        units_confirmed = True
+    else:
+        # Fallback: use bedrooms as a rough proxy for underwriting only
+        num_units = raw.get("bedrooms") or 2
     num_units = int(num_units)
 
     sqft = raw.get("squareFootage")
@@ -91,6 +93,7 @@ def _parse_listing(raw: dict[str, Any], now: datetime) -> Listing | None:
         address=address,
         list_price=float(list_price),
         num_units=num_units,
+        units_confirmed=units_confirmed,
         sqft=sqft,
         year_built=year_built,
         days_on_market=days_on_market,
@@ -155,8 +158,9 @@ def fetch_sale_listings(api_key: str | None = None) -> list[Listing]:
                     listing = _parse_listing(raw, now)
                     if listing is None:
                         continue
-                    # Apply unit-count filter client-side
-                    if not (config.MIN_UNITS <= listing.num_units <= config.MAX_UNITS):
+                    # Only filter on unit count when RentCast confirmed it;
+                    # otherwise let the listing through (bedrooms != units).
+                    if listing.units_confirmed and not (config.MIN_UNITS <= listing.num_units <= config.MAX_UNITS):
                         continue
                     all_listings.append(listing)
 
