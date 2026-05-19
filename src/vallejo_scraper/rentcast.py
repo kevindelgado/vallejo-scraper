@@ -52,6 +52,10 @@ def _parse_listing(raw: dict[str, Any], now: datetime) -> Listing | None:
         num_units = raw.get("bedrooms") or 2
     num_units = int(num_units)
 
+    bedrooms = raw.get("bedrooms")
+    if bedrooms is not None:
+        bedrooms = int(bedrooms)
+
     sqft = raw.get("squareFootage")
     if sqft is not None:
         sqft = float(sqft)
@@ -94,6 +98,7 @@ def _parse_listing(raw: dict[str, Any], now: datetime) -> Listing | None:
         list_price=float(list_price),
         num_units=num_units,
         units_confirmed=units_confirmed,
+        bedrooms=bedrooms,
         sqft=sqft,
         year_built=year_built,
         days_on_market=days_on_market,

@@ -41,6 +41,7 @@ class Listing(BaseModel):
     list_price: float
     num_units: int
     units_confirmed: bool = False
+    bedrooms: Optional[int] = None
     sqft: Optional[float] = None
     year_built: Optional[int] = None
     days_on_market: Optional[int] = None
