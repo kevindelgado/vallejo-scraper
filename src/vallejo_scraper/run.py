@@ -56,7 +56,7 @@ def main() -> None:
         mrp_result, verdict = underwrite_listing(listing)
         rows.append((listing, mrp_result, verdict))
         logger.info(
-            "  %s | ask=$%,.0f | mrp=$%,.0f | gap=%+.1f%% | %s | rent_src=%s",
+            "  %s | ask=$%.0f | mrp=$%.0f | gap=%+.1f%% | %s | rent_src=%s",
             listing.address,
             listing.list_price,
             mrp_result.mrp,
