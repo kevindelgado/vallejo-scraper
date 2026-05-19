@@ -155,7 +155,8 @@ async function runPipeline() {
   summary.textContent = '';
 
   try {
-    const resp = await fetch('/api/run', { method: 'POST' });
+    const apiUrl = window.location.origin + '/api/run';
+    const resp = await fetch(apiUrl, { method: 'POST' });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
       throw new Error(err.detail || `HTTP ${resp.status}`);
