@@ -1,0 +1,38 @@
+[project]
+name = "vallejo-scraper"
+version = "0.1.0"
+description = "Pulls active Vallejo 2-4 unit listings from RentCast, underwrites each with the MRP formula, and outputs CSV."
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27,<1",
+    "pydantic>=2,<3",
+    "python-dotenv>=1,<2",
+    "fastapi>=0.111,<1",
+    "uvicorn[standard]>=0.30,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8,<9",
+    "pytest-httpx>=0.30,<1",
+    "respx>=0.22,<1",
+    "ruff>=0.4,<1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vallejo_scraper"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
