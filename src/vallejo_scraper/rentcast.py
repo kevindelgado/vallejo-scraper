@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 
 from vallejo_scraper import config
-from vallejo_scraper.models import Listing, RentSource
+from vallejo_scraper.models import Listing, RentSource, TargetFilters
 
 logger = logging.getLogger(__name__)
 
@@ -110,21 +110,27 @@ def _parse_listing(raw: dict[str, Any], now: datetime) -> Listing | None:
     )
 
 
-def fetch_sale_listings(api_key: str | None = None) -> list[Listing]:
-    """Fetch active Vallejo multi-family sale listings from RentCast.
+def fetch_sale_listings(
+    api_key: str | None = None,
+    filters: TargetFilters | None = None,
+) -> list[Listing]:
+    """Fetch active multi-family sale listings from RentCast.
 
-    Applies the price and unit filters from config.
+    Uses *filters* for city/state/price/unit criteria.  Falls back to
+    ``config`` module-level defaults when *filters* is ``None``.
     """
     if api_key is None:
         api_key = config.get_rentcast_api_key()
+    if filters is None:
+        filters = TargetFilters()
 
     headers = _build_headers(api_key)
     params: dict[str, Any] = {
-        "city": config.TARGET_CITY,
-        "state": config.TARGET_STATE,
+        "city": filters.city,
+        "state": filters.state,
         "propertyType": "Multi-Family",
         "status": "Active",
-        "price": f"{config.MIN_PRICE}-{config.MAX_PRICE}",
+        "price": f"{filters.min_price}-{filters.max_price}",
         "limit": 500,
         "offset": 0,
     }
@@ -165,7 +171,7 @@ def fetch_sale_listings(api_key: str | None = None) -> list[Listing]:
                         continue
                     # Only filter on unit count when RentCast confirmed it;
                     # otherwise let the listing through (bedrooms != units).
-                    if listing.units_confirmed and not (config.MIN_UNITS <= listing.num_units <= config.MAX_UNITS):
+                    if listing.units_confirmed and not (filters.min_units <= listing.num_units <= filters.max_units):
                         continue
                     all_listings.append(listing)
 
